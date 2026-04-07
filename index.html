@@ -39,6 +39,8 @@ let message = '';
 let introStep = 0;
 let endingTimer = 0;
 let endingText = '';
+let messageTimer = 0;
+let bossSpawned = false;
 
 // 버튼 영역
 const easyBtn = { x: W/2 - 120, y: H/2 + 40, w: 100, h: 50 };
@@ -72,7 +74,9 @@ function reset(){
   score = 0;
   speed = difficulty==='easy' ? 2 : 3;
   shake = 0;
-  message = '';
+  message = '막스: 오늘은 꼭 잡을 거야, 조지.';
+  messageTimer = 0;
+  bossSpawned = false;
 }
 
 function startGame(){
@@ -82,7 +86,19 @@ function startGame(){
 }
 
 function spawn(){
-  obstacles.push({ x:Math.random()*(W-40), y:-40, size:40, speed:speed+Math.random()*1.5 });
+  obstacles.push({ x:Math.random()*(W-40), y:-40, size:40, speed:speed+Math.random()*1.5, boss:false });
+  if(messageTimer <= 0){
+    message = getLine();
+    messageTimer = 120;
+  }
+}
+
+function spawnBoss(){
+  obstacles.push({ x: W/2 - 70, y: -120, size: 140, speed: difficulty==='easy' ? 2.6 : 3.4, boss:true });
+  message = '막스: 이제 진짜 피할 수 있을 것 같아, 조지?';
+  messageTimer = 180;
+  bossSpawned = true;
+});
   message = getLine();
 }
 
@@ -102,6 +118,12 @@ function update(){
   const spawnRate = difficulty==='easy' ? 0.028 : 0.05;
   if(Math.random()<spawnRate) spawn();
 
+  if(!bossSpawned && score >= 5000){
+    spawnBoss();
+  }
+
+  if(messageTimer > 0) messageTimer--;
+
   player.x += player.dx;
   player.x = Math.max(0, Math.min(W-player.size, player.x));
 
@@ -111,8 +133,12 @@ function update(){
     const o = obstacles[i];
     if(collide(player,o)){
       obstacles.splice(i,1);
-      player.lives--;
-      shake = 10;
+      player.lives -= o.boss ? 3 : 1;
+      shake = o.boss ? 18 : 10;
+      if(o.boss){
+        message = '조지: 잠깐, 이건 너무 크잖아?!';
+        messageTimer = 120;
+      }
       if(player.lives<=0){
         running=false;
         state='ending';
@@ -120,7 +146,7 @@ function update(){
       }
       continue;
     }
-    if(o.y>H) obstacles.splice(i,1);
+    if(o.y>H+160) obstacles.splice(i,1);
   }
 
   score++;
@@ -138,16 +164,25 @@ function drawTrack(){
 
 function drawHUD(){
   ctx.fillStyle='white';
+  ctx.font='16px Arial';
   ctx.fillText('Score:'+score,10,20);
   ctx.fillText('Best:'+best,300,20);
   ctx.fillText('❤ x '+player.lives,10,45);
   ctx.fillStyle='#ffd166';
-  ctx.fillText(message,40,70);
+  ctx.font='18px Arial';
+  wrapText(message, 28, 76, 360, 22);
 }
 
 function drawObjects(){
   ctx.drawImage(playerImg, player.x, player.y, player.size, player.size);
-  obstacles.forEach(o=> ctx.drawImage(obstacleImg,o.x,o.y,o.size,o.size));
+  obstacles.forEach(o=> {
+    ctx.drawImage(obstacleImg,o.x,o.y,o.size,o.size);
+    if(o.boss){
+      ctx.fillStyle = '#ff6b6b';
+      ctx.font = 'bold 14px Arial';
+      ctx.fillText('BOSS', o.x + 42, o.y - 8);
+    }
+  });
 }
 
 function drawButton(btn, text){
