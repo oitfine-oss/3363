@@ -1,23 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>피하기 게임 (간단 버전)</title>
-  <style>
-    body {
-      margin: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      background: linear-gradient(180deg, #08111f 0%, #111827 100%);
-    }
-    canvas {
-      background: #0b1220;
-      border-radius: 18px;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>복어 피하기 🐡</title>
+<style>
+  body { margin:0; display:flex; justify-content:center; align-items:center; height:100vh; background:#0b0f1a; font-family:sans-serif; }
+  canvas { background:#111; border-radius:16px; }
+</style>
 </head>
 <body>
 <canvas id="game" width="420" height="600"></canvas>
@@ -32,183 +22,335 @@ const H = canvas.height;
 
 const playerImg = new Image();
 const obstacleImg = new Image();
-
 playerImg.src = 'player.png';
 obstacleImg.src = 'obstacle.png';
 
-const player = {
-  x: W / 2 - 28,
-  y: H - 88,
-  size: 56,
-  dx: 0,
-  speed: 6,
-  lives: 3
-};
+let difficulty = 'hard'; // easy | hard
 
+const player = { x:W/2-25, y:H-80, size:50, dx:0, speed:6, lives:10 };
 let obstacles = [];
 let score = 0;
-let bestScore = Number(localStorage.getItem('avoid-best-score-simple') || 0);
+let best = Number(localStorage.getItem('f1-best')||0);
 let speed = 3;
 let running = false;
-let gameState = 'start';
+let state = 'intro'; // intro | start | playing | gameover | ending
 let shake = 0;
+let message = '';
+let introStep = 0;
+let endingTimer = 0;
+let endingText = '';
 
-function resetGame() {
-  player.x = W / 2 - 28;
+const introScenes = [
+  '막스: 오늘도 같이 달릴래, 조지?',
+  '조지는 아무 말도 하지 않았다.',
+  '하지만 막스의 고백은 점점 더 가까워진다...',
+  '복어 피하기 시작!'
+];
+
+const storyLines = {
+  early: ['막스: 나 너 좋아해...', '막스: 오늘도 같이 갈래?', '막스: 피하지마 조지...'],
+  mid: ['막스: 왜 계속 피하는데 조지?', '막스: 나 진심이야', '막스: 이쯤 되면 알잖아'],
+  late: ['막스: 이제 도망 못 가 조지', '막스: 끝까지 갈 거야', '막스: 오늘은 꼭 답해']
+};
+
+function getLine(){
+  if(score < 300) return random(storyLines.early);
+  if(score < 900) return random(storyLines.mid);
+  return random(storyLines.late);
+}
+
+function random(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+function reset(){
+  player.x = W/2-25;
   player.dx = 0;
-  player.lives = 3;
+  player.lives = 10;
   obstacles = [];
   score = 0;
-  speed = 3;
+  speed = difficulty==='easy' ? 2 : 3;
   shake = 0;
+  message = '';
+  endingTimer = 0;
+  endingText = '';
 }
 
-function startGame() {
-  resetGame();
+function startGame(){
+  reset();
   running = true;
-  gameState = 'playing';
+  state = 'playing';
+  message = '막스: 나 이번엔 진심이야, 조지...';
 }
 
-function spawnObstacle() {
-  const size = 40;
-  obstacles.push({
-    x: Math.random() * (W - size),
-    y: -size,
-    size,
-    speed: speed + Math.random() * 1.2
-  });
+function spawn(){
+  obstacles.push({ x:Math.random()*(W-40), y:-40, size:40, speed:speed+Math.random()*1.5 });
+  message = getLine();
 }
 
-function isColliding(a, b) {
-  return (
-    a.x < b.x + b.size &&
-    a.x + a.size > b.x &&
-    a.y < b.y + b.size &&
-    a.y + a.size > b.y
-  );
+function collide(a,b){
+  return a.x < b.x+b.size && a.x+a.size>b.x && a.y<b.y+b.size && a.y+a.size>b.y;
 }
 
-function loseLife() {
-  player.lives -= 1;
-  shake = 12;
-  if (player.lives <= 0) {
-    running = false;
-    gameState = 'gameover';
-    if (score > bestScore) {
-      bestScore = score;
-      localStorage.setItem('avoid-best-score-simple', String(bestScore));
+function update(){
+  if(state === 'ending') {
+    endingTimer++;
+    if(endingTimer > 180) {
+      state = 'gameover';
     }
+    return;
   }
-}
 
-function update() {
-  if (!running) return;
+  if(!running) return;
 
-  if (Math.random() < 0.045) spawnObstacle();
+  const spawnRate = difficulty==='easy' ? 0.028 : 0.05;
+  if(Math.random()<spawnRate) spawn();
 
   player.x += player.dx;
-  player.x = Math.max(0, Math.min(W - player.size, player.x));
+  player.x = Math.max(0, Math.min(W-player.size, player.x));
 
-  obstacles.forEach(o => o.y += o.speed);
+  obstacles.forEach(o=> o.y += o.speed);
 
-  for (let i = obstacles.length - 1; i >= 0; i--) {
+  for(let i=obstacles.length-1;i>=0;i--){
     const o = obstacles[i];
-    if (isColliding(player, o)) {
-      obstacles.splice(i, 1);
-      loseLife();
+    if(collide(player,o)){
+      obstacles.splice(i,1);
+      player.lives--;
+      shake = 10;
+      if(player.lives<=0){
+        running=false;
+        state='ending';
+        if(score>best){ best=score; localStorage.setItem('f1-best',best); }
+        endingText = score > 1800
+          ? '결국 비글은 복어의 마음을 받아들였다...'
+          : '비글은 끝내 고백을 피하지 못했다...';
+      }
       continue;
     }
-    if (o.y > H + 50) obstacles.splice(i, 1);
+    if(o.y>H) obstacles.splice(i,1);
   }
 
   score++;
-
-  if (score % 300 === 0) speed += 0.4;
+  if(score%300===0) speed+= difficulty==='easy'?0.25:0.45;
 }
 
-function drawBackground() {
-  ctx.fillStyle = '#0b1220';
-  ctx.fillRect(0, 0, W, H);
+function drawTrack(){
+  ctx.fillStyle='#111';
+  ctx.fillRect(0,0,W,H);
+
+  ctx.strokeStyle='rgba(255,255,255,0.08)';
+  for(let y=0;y<H;y+=40){
+    ctx.beginPath();
+    ctx.moveTo(0,y);
+    ctx.lineTo(W,y);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle='rgba(255,255,255,0.08)';
+  for(let y=0;y<H;y+=60){
+    ctx.fillRect(W/2 - 4, y, 8, 28);
+  }
 }
 
-function drawHUD() {
-  ctx.fillStyle = 'white';
-  ctx.font = 'bold 16px Arial';
-  ctx.fillText(`Score: ${score}`, 14, 24);
-  ctx.fillText(`Best: ${bestScore}`, 300, 24);
+function drawHUD(){
+  ctx.fillStyle='white';
+  ctx.font='16px Arial';
+  ctx.fillText('Score: '+score,10,20);
+  ctx.fillText('Best: '+best,295,20);
+  ctx.fillText('Mode: '+difficulty.toUpperCase(),10,66);
 
-  let hearts = '';
-  for (let i = 0; i < player.lives; i++) hearts += '❤';
-  ctx.fillStyle = '#ff7b8a';
-  ctx.font = '18px Arial';
-  ctx.fillText(hearts, 14, 48);
+  ctx.fillStyle='#ff6b6b';
+  ctx.font='16px Arial';
+  ctx.fillText('❤ x '+player.lives,10,43);
+
+  ctx.fillStyle='#ffd166';
+  ctx.font='14px Arial';
+  wrapText(message, 40, 92, 340, 18);
 }
 
-function drawPlayer() {
+function drawObjects(){
   ctx.drawImage(playerImg, player.x, player.y, player.size, player.size);
+  obstacles.forEach(o=> ctx.drawImage(obstacleImg,o.x,o.y,o.size,o.size));
 }
 
-function drawObjects() {
-  obstacles.forEach(o => {
-    ctx.drawImage(obstacleImg, o.x, o.y, o.size, o.size);
-  });
+function overlay(title, subtitle, small=''){
+  ctx.fillStyle='rgba(0,0,0,0.65)';
+  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='white';
+  ctx.textAlign='center';
+  ctx.font='bold 28px Arial';
+  ctx.fillText(title, W/2, H/2 - 20);
+  ctx.font='15px Arial';
+  ctx.fillText(subtitle, W/2, H/2 + 12);
+  if (small) {
+    ctx.fillStyle='#cbd5e1';
+    ctx.font='13px Arial';
+    ctx.fillText(small, W/2, H/2 + 42);
+  }
+  ctx.textAlign='left';
 }
 
-function drawOverlay(text) {
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = 'white';
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 28px Arial';
-  ctx.fillText(text, W / 2, H / 2);
-  ctx.textAlign = 'left';
+function wrapText(text, x, y, maxWidth, lineHeight){
+  const words = text.split(' ');
+  let line = '';
+  let yy = y;
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + words[n] + ' ';
+    const metrics = ctx.measureText(testLine);
+    if (metrics.width > maxWidth && n > 0) {
+      ctx.fillText(line, x, yy);
+      line = words[n] + ' ';
+      yy += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line, x, yy);
 }
 
-function draw() {
+function drawIntro(){
+  drawTrack();
+  overlay('복어 피하기', introScenes[introStep], '터치 / 스페이스 / 엔터로 다음');
+}
+
+function drawStart(){
+  drawTrack();
+  overlay('난이도 선택', 'E = EASY / H = HARD', '모바일은 화면 왼쪽 EASY, 오른쪽 HARD');
+}
+
+function drawEnding(){
+  drawTrack();
+  drawObjects();
+  ctx.fillStyle='rgba(0,0,0,0.72)';
+  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='white';
+  ctx.textAlign='center';
+  ctx.font='bold 26px Arial';
+  ctx.fillText('엔딩', W/2, H/2 - 30);
+  ctx.font='16px Arial';
+  wrapTextCentered(endingText, W/2, H/2 + 8, 300, 22);
+  ctx.textAlign='left';
+}
+
+function wrapTextCentered(text, centerX, startY, maxWidth, lineHeight){
+  const words = text.split(' ');
+  let line = '';
+  let yy = startY;
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + words[n] + ' ';
+    const metrics = ctx.measureText(testLine);
+    if (metrics.width > maxWidth && n > 0) {
+      const w = ctx.measureText(line).width;
+      ctx.fillText(line, centerX - w/2, yy);
+      line = words[n] + ' ';
+      yy += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  const w = ctx.measureText(line).width;
+  ctx.fillText(line, centerX - w/2, yy);
+}
+
+function drawGameOver(){
+  drawTrack();
+  overlay('게임 오버', score > 1800 ? '결국 마음을 열었다...' : '끝내 붙잡혔다...', '스페이스 / 엔터 / 터치로 다시 시작');
+}
+
+function draw(){
   ctx.save();
-
-  if (shake > 0) {
-    ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+  if(shake>0){
+    ctx.translate((Math.random()-0.5)*shake,(Math.random()-0.5)*shake);
     shake--;
   }
 
-  drawBackground();
-  drawHUD();
-  drawObjects();
-  drawPlayer();
+  if(state==='intro') { drawIntro(); ctx.restore(); return; }
+  if(state==='start') { drawStart(); ctx.restore(); return; }
 
-  if (gameState === 'start') drawOverlay('스페이스 누르면 시작');
-  if (gameState === 'gameover') drawOverlay('게임오버 - 스페이스로 재시작');
+  drawTrack();
+  drawObjects();
+  drawHUD();
+
+  if(state==='ending') drawEnding();
+  if(state==='gameover') drawGameOver();
 
   ctx.restore();
 }
 
-function loop() {
+function loop(){
   update();
   draw();
   requestAnimationFrame(loop);
 }
 
-window.addEventListener('keydown', e => {
-  if ((e.key === ' ' || e.key === 'Enter') && gameState !== 'playing') {
+function handleIntroAdvance(){
+  if (state !== 'intro') return false;
+  introStep++;
+  if (introStep >= introScenes.length) {
+    state = 'start';
+    introStep = 0;
+  }
+  return true;
+}
+
+window.addEventListener('keydown', e=>{
+  const key = e.key.toLowerCase();
+
+  if (state === 'intro') {
+    if (e.key === ' ' || e.key === 'Enter') handleIntroAdvance();
+    return;
+  }
+
+  if(state==='start'){
+    if(key==='e'){ difficulty='easy'; startGame(); }
+    if(key==='h'){ difficulty='hard'; startGame(); }
+    return;
+  }
+
+  if((e.key===' '||e.key==='Enter') && (state==='gameover' || state==='ending')){
+    state = 'intro';
+    running = false;
+    return;
+  }
+
+  if(e.key==='ArrowLeft'||key==='a') player.dx=-player.speed;
+  if(e.key==='ArrowRight'||key==='d') player.dx=player.speed;
+});
+
+window.addEventListener('keyup', e=>{
+  const key = e.key.toLowerCase();
+  if (e.key==='ArrowLeft' || e.key==='ArrowRight' || key==='a' || key==='d') {
+    player.dx=0;
+  }
+});
+
+canvas.addEventListener('touchstart', e=>{
+  const x = e.touches[0].clientX;
+
+  if (state === 'intro') {
+    handleIntroAdvance();
+    return;
+  }
+
+  if(state==='start'){
+    difficulty = x < window.innerWidth/2 ? 'easy' : 'hard';
     startGame();
     return;
   }
 
-  if (e.key === 'ArrowLeft' || e.key === 'a') player.dx = -player.speed;
-  if (e.key === 'ArrowRight' || e.key === 'd') player.dx = player.speed;
+  if(state==='gameover' || state==='ending'){
+    state = 'intro';
+    running = false;
+    return;
+  }
+
+  if(x < window.innerWidth/2) player.dx=-player.speed;
+  else player.dx=player.speed;
 });
 
-window.addEventListener('keyup', () => {
-  player.dx = 0;
-});
+canvas.addEventListener('touchend', ()=> player.dx=0);
 
-let loaded = 0;
-[playerImg, obstacleImg].forEach(img => {
-  img.onload = () => {
-    loaded++;
-    if (loaded === 2) loop();
-  };
+let loaded=0;
+[playerImg, obstacleImg].forEach(img=>{
+  img.onload=()=>{ loaded++; if(loaded===2) loop(); }
 });
 </script>
 </body>
