@@ -176,8 +176,8 @@ function draw(){
     drawButton(easyBtn,'EASY');
     drawButton(hardBtn,'HARD');
   }
-  if(state==='ending') overlay('엔딩','조지: ...흥, 네가 원한다면 잠깐은 옆에 있어줄게.');
-  if(state==='gameover') overlay('게임오버','조지: 나 진짜 버거웠어... 근데 사실 싫지 않을지도?');
+  if(state==='ending') overlay('SUCCESS!','조지: ...흥, 네가 원한다면 잠깐은 옆에 있어줄게.');
+  if(state==='gameover') overlay('FAIL','조지: 나 진짜 버거웠어... 근데 사실 싫지 않을지도?');
 }
 
 function overlay(t,sub){
