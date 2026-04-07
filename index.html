@@ -30,21 +30,26 @@ let score = 0;
 let message = '';
 let messageTimer = 0;
 let bossActive = false;
+let warningActive = false;
+let warningTimer = 0;
+let difficulty = 'easy';
 
 const player = { x:W/2-25, y:H-80, size:50, dx:0, speed:6, lives:10 };
 let obstacles = [];
 
-// 🎭 대사 유지
+// ▶ 난이도 버튼
+const easyBtn = { x: W/2 - 140, y: H/2 + 30, w: 120, h: 50 };
+const hardBtn = { x: W/2 + 20, y: H/2 + 30, w: 120, h: 50 };
+
 const lines = [
-  '막스: 나 너 좋아해...',
-  '막스: 오늘도 같이 갈래?',
+  '막스: Very beautiful',
+  '막스: 오늘도 같이 파델 한 판 할래?',
   '막스: 피하지마 조지...',
   '막스: 왜 계속 피하는데 조지?',
   '막스: 나 진심이야',
   '막스: 이제 도망 못 가 조지'
 ];
 
-// 🐶 조지 반응 대사
 const georgeLines = [
   '조지: 아니 잠깐만;',
   '조지: 왜 이러는거야 진짜...',
@@ -53,42 +58,54 @@ const georgeLines = [
   '조지: 이건 좀 부담인데...'
 ];
 
-function startGame(){
+function startGame(mode = difficulty){
+  difficulty = mode;
   score = 0;
   player.lives = 10;
   player.x = W/2-25;
+  player.dx = 0;
   obstacles = [];
   bossActive = false;
+  warningActive = false;
+  warningTimer = 0;
   running = true;
   state = 'playing';
-  message = '막스: 오늘은 꼭 잡을 거야, 조지.';
+  message = `막스: 오늘은 꼭 잡을 거야, 조지. (${difficulty.toUpperCase()})`;
   messageTimer = 120;
 }
 
-function spawn(){
-  if(bossActive) return;
-  obstacles.push({ x:Math.random()*(W-40), y:-40, size:40, speed:3, boss:false });
+function getSpawnChance(){ return difficulty === 'hard' ? 0.055 : 0.035; }
+function getNormalSpeed(){ return difficulty === 'hard' ? 3.8 : 3; }
+function getBossSpeed(){ return difficulty === 'hard' ? 2.8 : 2.2; }
 
-  if(messageTimer<=0){
-    message = lines[Math.floor(Math.random()*lines.length)];
-    messageTimer = 100;
-  }
+function spawn(){
+  if(bossActive || warningActive) return;
+  obstacles.push({ x:Math.random()*(W-40), y:-40, size:40, speed:getNormalSpeed(), boss:false });
+  if(messageTimer<=0){ message = lines[Math.floor(Math.random()*lines.length)]; messageTimer = 100; }
+}
+
+function triggerWarning(){
+  warningActive = true; warningTimer = 90;
+  message = '막스: 조지, 이제 진짜 갈게.'; messageTimer = 90;
 }
 
 function spawnBoss(){
   bossActive = true;
-  obstacles = [{ x:W/2-70, y:-140, size:140, speed:2, boss:true, dx:2 }];
-  message = '막스: 이제 진짜 피할 수 있을까, 조지?';
-  messageTimer = 180;
+  obstacles = [{ x:W/2-105, y:-210, size:210, speed:getBossSpeed(), boss:true, dx:difficulty==='hard'?2.8:2.2 }];
+  message = '막스: 이제 진짜 피할 수 있을까, 조지?'; messageTimer = 180;
 }
 
 function update(){
   if(!running) return;
 
-  if(!bossActive && score>=5000) spawnBoss();
+  if(!bossActive && !warningActive && score>=5000) triggerWarning();
 
-  if(!bossActive && Math.random()<0.04) spawn();
+  if(warningActive){
+    warningTimer--; if(warningTimer<=0){ warningActive=false; spawnBoss(); }
+    if(messageTimer>0) messageTimer--; score++; return;
+  }
 
+  if(!bossActive && Math.random()<getSpawnChance()) spawn();
   if(messageTimer>0) messageTimer--;
 
   player.x += player.dx;
@@ -96,17 +113,9 @@ function update(){
 
   obstacles.forEach(o=>{
     o.y += o.speed;
-
     if(o.boss){
-      o.x += o.dx;
-      if(o.x<0 || o.x+o.size>W) o.dx*=-1;
-
-      // 👉 보스 살아남으면 엔딩
-      if(o.y > H/2){
-        running = false;
-        state = 'ending';
-        message = '조지: ...나도 사실 싫진 않았어.';
-      }
+      o.x += o.dx; if(o.x<0 || o.x+o.size>W) o.dx*=-1;
+      if(o.y > H/2){ running=false; state='ending'; message='조지: ...흥, 네가 그렇게까지 말하는데 뭐. 잠깐 받아주는 거야.'; }
     }
   });
 
@@ -115,95 +124,116 @@ function update(){
     if(player.x < o.x+o.size && player.x+player.size>o.x && player.y<o.y+o.size && player.y+player.size>o.y){
       player.lives -= o.boss ? 3 : 1;
       if(!o.boss) obstacles.splice(i,1);
-
-      if(player.lives<=0){
-        running=false;
-        state='gameover';
-      } else {
-        // 💬 맞았을 때 조지 반응
-        message = georgeLines[Math.floor(Math.random()*georgeLines.length)];
-        messageTimer = 100;
-      }
+      if(player.lives<=0){ running=false; state='gameover'; }
+      else { message = georgeLines[Math.floor(Math.random()*georgeLines.length)]; messageTimer = 100; }
     }
   }
 
   score++;
 }
 
+function drawButton(btn, label){
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fillRect(btn.x, btn.y, btn.w, btn.h);
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.strokeRect(btn.x, btn.y, btn.w, btn.h);
+  ctx.fillStyle = 'white';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 18px Arial';
+  ctx.fillText(label, btn.x + btn.w/2, btn.y + 32);
+  ctx.textAlign = 'left';
+}
+
+function drawWarning(){
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0,0,W,H);
+  if(Math.floor(warningTimer / 8) % 2 === 0){
+    ctx.fillStyle = '#ff2b2b'; ctx.textAlign = 'center';
+    ctx.font = 'bold 54px Arial'; ctx.fillText('WARNING', W/2, H/2);
+    ctx.font = '18px Arial'; ctx.fillText('막스 복어 접근 중', W/2, H/2 + 34);
+    ctx.textAlign = 'left';
+  }
+}
+
 function draw(){
   ctx.clearRect(0,0,W,H);
-  ctx.fillStyle='#111';
-  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#111'; ctx.fillRect(0,0,W,H);
 
   ctx.drawImage(playerImg, player.x, player.y, player.size, player.size);
-
   obstacles.forEach(o=> ctx.drawImage(obstacleImg,o.x,o.y,o.size,o.size));
 
-  ctx.fillStyle='white';
+  ctx.fillStyle='white'; ctx.font='16px Arial';
   ctx.fillText('Score:'+score,10,20);
   ctx.fillText('❤ x '+player.lives,10,40);
+  ctx.fillText('Mode: '+difficulty.toUpperCase(),300,20);
 
-  ctx.fillStyle='#ffd166';
-  ctx.font='18px Arial';
+  ctx.fillStyle='#ffd166'; ctx.font='18px Arial';
   ctx.fillText(message,40,70);
 
-  if(state==='intro') overlay('복어 피하기','클릭하거나 탭해서 시작');
-  if(state==='ending') overlay('엔딩','조지는 막스의 고백을 받아들였다.');
+  if(warningActive) drawWarning();
+
+  if(state==='intro'){
+    overlay('복어 피하기','난이도를 선택하세요');
+    drawButton(easyBtn,'EASY');
+    drawButton(hardBtn,'HARD');
+  }
+  if(state==='ending') overlay('엔딩','조지: ...흥, 네가 원한다면 잠깐은 옆에 있어줄게.');
   if(state==='gameover') overlay('게임오버','조지: 나 진짜 버거웠어... 근데 사실 싫지 않을지도?');
 }
 
 function overlay(t,sub){
-  ctx.fillStyle='rgba(0,0,0,0.7)';
-  ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='white';
-  ctx.textAlign='center';
-  ctx.fillText(t,W/2,H/2-10);
-  ctx.fillText(sub,W/2,H/2+20);
+  ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='white'; ctx.textAlign='center';
+  ctx.font='24px Arial'; ctx.fillText(t,W/2,H/2-10);
+  ctx.font='16px Arial'; ctx.fillText(sub,W/2,H/2+20);
   ctx.textAlign='left';
 }
 
 function loop(){ update(); draw(); requestAnimationFrame(loop); }
 
-canvas.addEventListener('click', ()=>{
-  if(state==='intro') startGame();
-  else if(state==='gameover' || state==='ending') state='intro';
+function inBtn(x,y,btn){ return x>=btn.x && x<=btn.x+btn.w && y>=btn.y && y<=btn.y+btn.h; }
+
+canvas.addEventListener('click', (e)=>{
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (W / rect.width);
+  const y = (e.clientY - rect.top) * (H / rect.height);
+
+  if(state==='intro'){
+    if(inBtn(x,y,easyBtn)) startGame('easy');
+    if(inBtn(x,y,hardBtn)) startGame('hard');
+    return;
+  }
+
+  if(state==='gameover' || state==='ending') state='intro';
 });
 
-// 📱 모바일 터치 대응
 canvas.addEventListener('touchstart', (e)=>{
   e.preventDefault();
   const rect = canvas.getBoundingClientRect();
-  const touch = e.touches[0];
-  const x = (touch.clientX - rect.left) * (W / rect.width);
+  const t = e.touches[0];
+  const x = (t.clientX - rect.left) * (W / rect.width);
+  const y = (t.clientY - rect.top) * (H / rect.height);
 
-  if(state==='intro') {
-    startGame();
+  if(state==='intro'){
+    if(inBtn(x,y,easyBtn)) startGame('easy');
+    if(inBtn(x,y,hardBtn)) startGame('hard');
     return;
   }
 
-  if(state==='gameover' || state==='ending') {
-    state='intro';
-    return;
-  }
+  if(state==='gameover' || state==='ending'){ state='intro'; return; }
 
-  if(x < W/2) player.dx = -player.speed;
-  else player.dx = player.speed;
+  if(x < W/2) player.dx = -player.speed; else player.dx = player.speed;
 }, { passive: false });
 
 canvas.addEventListener('touchmove', (e)=>{
   if(state!=='playing') return;
   e.preventDefault();
   const rect = canvas.getBoundingClientRect();
-  const touch = e.touches[0];
-  const x = (touch.clientX - rect.left) * (W / rect.width);
-
-  if(x < W/2) player.dx = -player.speed;
-  else player.dx = player.speed;
+  const t = e.touches[0];
+  const x = (t.clientX - rect.left) * (W / rect.width);
+  if(x < W/2) player.dx = -player.speed; else player.dx = player.speed;
 }, { passive: false });
 
-canvas.addEventListener('touchend', ()=>{
-  player.dx = 0;
-});
+canvas.addEventListener('touchend', ()=>{ player.dx = 0; });
 
 window.addEventListener('keydown', e=>{
   if(e.key==='ArrowLeft'||e.key==='a') player.dx=-player.speed;
@@ -212,9 +242,7 @@ window.addEventListener('keydown', e=>{
 window.addEventListener('keyup', ()=> player.dx=0);
 
 let loaded=0;
-[playerImg, obstacleImg].forEach(img=>{
-  img.onload=()=>{ loaded++; if(loaded===2) loop(); }
-});
+[playerImg, obstacleImg].forEach(img=>{ img.onload=()=>{ loaded++; if(loaded===2) loop(); } });
 </script>
 </body>
 </html>
