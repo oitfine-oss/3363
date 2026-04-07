@@ -147,9 +147,9 @@ function draw(){
   ctx.font='18px Arial';
   ctx.fillText(message,40,70);
 
-  if(state==='intro') overlay('복어 피하기','클릭해서 시작');
-  if(state==='ending') overlay('엔딩','막스의 고백을 받아들였다');
-  if(state==='gameover') overlay('게임오버','다시하려면 클릭');
+  if(state==='intro') overlay('복어 피하기','클릭하거나 탭해서 시작');
+  if(state==='ending') overlay('엔딩','조지는 막스의 고백을 받아들였다.');
+  if(state==='gameover') overlay('게임오버','조지: 나 진짜 버거웠어... 근데 사실 싫지 않을지도?');
 }
 
 function overlay(t,sub){
@@ -167,6 +167,42 @@ function loop(){ update(); draw(); requestAnimationFrame(loop); }
 canvas.addEventListener('click', ()=>{
   if(state==='intro') startGame();
   else if(state==='gameover' || state==='ending') state='intro';
+});
+
+// 📱 모바일 터치 대응
+canvas.addEventListener('touchstart', (e)=>{
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  const x = (touch.clientX - rect.left) * (W / rect.width);
+
+  if(state==='intro') {
+    startGame();
+    return;
+  }
+
+  if(state==='gameover' || state==='ending') {
+    state='intro';
+    return;
+  }
+
+  if(x < W/2) player.dx = -player.speed;
+  else player.dx = player.speed;
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e)=>{
+  if(state!=='playing') return;
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  const x = (touch.clientX - rect.left) * (W / rect.width);
+
+  if(x < W/2) player.dx = -player.speed;
+  else player.dx = player.speed;
+}, { passive: false });
+
+canvas.addEventListener('touchend', ()=>{
+  player.dx = 0;
 });
 
 window.addEventListener('keydown', e=>{
