@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>피하기 게임 (업그레이드)</title>
+  <style>
+    body { margin:0; display:flex; justify-content:center; align-items:center; height:100vh; background:#0b0f1a; }
+    canvas { background:#111; border-radius:16px; }
+  </style>
+</head>
+<body>
+<canvas id="game" width="420" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+const playerImg = new Image();
+const obstacleImg = new Image();
+playerImg.src = 'player.png';
+obstacleImg.src = 'obstacle.png';
+
+const W = canvas.width;
+const H = canvas.height;
+
+const player = { x:W/2-25, y:H-80, size:50, dx:0, speed:6 };
+let obstacles = [];
+let score = 0;
+let speed = 3;
+let running = true;
+let shake = 0;
+
+function spawnObstacle(){
+  obstacles.push({ x:Math.random()*(W-40), y:-40, size:40, speed:speed });
+}
+
+function update(){
+  if(Math.random()<0.04) spawnObstacle();
+
+  player.x += player.dx;
+  player.x = Math.max(0, Math.min(W-player.size, player.x));
+
+  obstacles.forEach(o=> o.y += o.speed);
+
+  for(let o of obstacles){
+    if(player.x < o.x+o.size && player.x+player.size>o.x && player.y<o.y+o.size && player.y+player.size>o.y){
+      shake = 10;
+      running = false;
+      setTimeout(()=> alert('게임오버 점수:'+score), 100);
+    }
+  }
+
+  score++;
+
+  // 난이도 증가
+  if(score % 300 === 0){
+    speed += 0.5;
+  }
+}
+
+function draw(){
+  ctx.save();
+
+  if(shake > 0){
+    ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+    shake--;
+  }
+
+  ctx.clearRect(0,0,W,H);
+
+  // 배경 라인
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  for(let i=0;i<H;i+=40){
+    ctx.beginPath();
+    ctx.moveTo(0,i);
+    ctx.lineTo(W,i);
+    ctx.stroke();
+  }
+
+  // player
+  ctx.drawImage(playerImg, player.x, player.y, player.size, player.size);
+
+  // obstacles
+  obstacles.forEach(o=>{
+    ctx.drawImage(obstacleImg, o.x, o.y, o.size, o.size);
+  });
+
+  // 점수
+  ctx.fillStyle='white';
+  ctx.font='16px Arial';
+  ctx.fillText('Score: '+score, 10, 20);
+
+  ctx.restore();
+}
+
+function loop(){
+  if(!running) return;
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// 조작
+window.addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft'||e.key==='a') player.dx = -player.speed;
+  if(e.key==='ArrowRight'||e.key==='d') player.dx = player.speed;
+});
+window.addEventListener('keyup', ()=> player.dx = 0);
+
+playerImg.onload = ()=> obstacleImg.onload = ()=> loop();
+</script>
+</body>
+</html>
