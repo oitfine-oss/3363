@@ -300,8 +300,8 @@ window.addEventListener('keydown', e=>{
   }
 
   if(state==='start'){
-    if(key==='e'){ difficulty='easy'; startGame(); }
-    if(key==='h'){ difficulty='hard'; startGame(); }
+    if(key==='e' || e.key==='E'){ difficulty='easy'; startGame(); }
+    if(key==='h' || e.key==='H'){ difficulty='hard'; startGame(); }
     return;
   }
 
