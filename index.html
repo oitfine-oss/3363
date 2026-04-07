@@ -115,7 +115,7 @@ function update(){
     o.y += o.speed;
     if(o.boss){
       o.x += o.dx; if(o.x<0 || o.x+o.size>W) o.dx*=-1;
-      if(o.y > H/2){ running=false; state='ending'; message='조지: ...흥, 네가 그렇게까지 말하는데 뭐. 잠깐 받아주는 거야.'; }
+      if(o.y > H/2){ running=false; state='ending'; message='조지: ...네가 그렇게까지 말하는데 뭐.'; }
     }
   });
 
